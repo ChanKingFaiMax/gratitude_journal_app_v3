@@ -1,0 +1,8 @@
+{
+  "name": "@awaken/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./_core/index.ts",
+  "types": "./_core/index.ts"
+}

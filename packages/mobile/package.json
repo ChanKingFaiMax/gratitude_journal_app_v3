@@ -1,0 +1,15 @@
+{
+  "name": "@awaken/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "cross-env EXPO_USE_METRO_WORKSPACE_ROOT=1 npx expo start --web --port ${EXPO_PORT:-8081}",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "qr": "node scripts/generate_qr.mjs",
+    "check": "tsc --noEmit",
+    "lint": "expo lint",
+    "format": "prettier --write ."
+  }
+}
