@@ -1,0 +1,4 @@
+// This file will be generated automatically when you run `go mod tidy`
+// Run the following commands to generate it:
+//   cd server-go
+//   go mod tidy

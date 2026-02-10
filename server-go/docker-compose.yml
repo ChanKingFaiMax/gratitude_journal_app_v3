@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gratitude-api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/gratitude_journal?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_EXPIRY=168h
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - EMAIL_FROM=${EMAIL_FROM:-Awaken <noreply@example.com>}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8081}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - gratitude-network
+
+  db:
+    image: postgres:15-alpine
+    container_name: gratitude-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=gratitude_journal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - gratitude-network
+
+volumes:
+  postgres_data:
+
+networks:
+  gratitude-network:
+    driver: bridge

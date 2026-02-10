@@ -1,0 +1,246 @@
+import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useRouter } from "expo-router";
+import { useState, useEffect } from "react";
+import * as Haptics from "expo-haptics";
+
+import { ScreenContainer } from "@/components/screen-container";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { CelebrationModal } from "@/components/celebration-modal";
+import { useColors } from "@/hooks/use-colors";
+import { trpc } from "@/lib/trpc";
+import { getJournalEntries } from "@/lib/storage";
+import { getUserStats, getStreakLevel } from "@/lib/stats-service";
+
+export default function ReportScreen() {
+  const colors = useColors();
+  const router = useRouter();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [report, setReport] = useState<{
+    summary: string;
+    sentiment: number;
+    encouragement: string;
+    totalWords: number;
+  } | null>(null);
+  const [todayEntries, setTodayEntries] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+
+  const analyzeMutation = trpc.ai.analyzeDailyEntries.useMutation();
+
+  useEffect(() => {
+    loadAndAnalyze();
+  }, []);
+
+  const loadAndAnalyze = async () => {
+    try {
+      // Get today's entries
+      const allEntries = await getJournalEntries();
+      const today = new Date().toISOString().split('T')[0];
+      const filtered = allEntries.filter(entry => entry.date === today);
+      setTodayEntries(filtered);
+
+      if (filtered.length === 0) {
+        router.replace('/');
+        return;
+      }
+
+      // Get stats
+      const userStats = await getUserStats();
+      setStats(userStats);
+
+      // Analyze all entries
+      const result = await analyzeMutation.mutateAsync({
+        entries: filtered.map(e => ({
+          topic: e.topic,
+          content: e.content,
+          wordCount: e.wordCount,
+        })),
+      });
+
+      setReport(result);
+
+      // Show celebration if completed 3 entries
+      if (filtered.length >= 3) {
+        setTimeout(() => {
+          setShowCelebration(true);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Failed to analyze entries:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getSentimentColor = (score: number) => {
+    if (score >= 80) return colors.success;
+    if (score >= 60) return colors.primary;
+    return colors.warning;
+  };
+
+  const handleBackHome = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.replace('/');
+  };
+
+  const streakInfo = stats ? getStreakLevel(stats.currentStreak) : null;
+  const completedToday = todayEntries.length >= 3;
+
+  if (isLoading) {
+    return (
+      <ScreenContainer>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text className="text-base text-muted mt-4">正在分析你的日记...</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (!report) {
+    return (
+      <ScreenContainer>
+        <View className="flex-1 items-center justify-center p-6">
+          <Text className="text-lg text-foreground mb-4">无法生成报告</Text>
+          <TouchableOpacity
+            onPress={handleBackHome}
+            className="px-6 py-3 rounded-full"
+            style={{ backgroundColor: colors.primary }}
+          >
+            <Text className="text-base font-semibold" style={{ color: '#FFFFFF' }}>
+              返回首页
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  return (
+    <ScreenContainer>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 24 }}>
+        {/* Header */}
+        <View className="items-center mb-8">
+          <View className="w-20 h-20 rounded-full items-center justify-center mb-4" style={{ backgroundColor: colors.primary + '20' }}>
+            <Text className="text-5xl">🎉</Text>
+          </View>
+          <Text className="text-2xl font-bold text-foreground mb-2">
+            {completedToday ? '今日目标已达成!' : '写作完成!'}
+          </Text>
+          <Text className="text-base text-muted">
+            今天共完成 {todayEntries.length}/3 篇日记
+          </Text>
+        </View>
+
+        {/* Stats Cards */}
+        <View className="flex-row gap-3 mb-6">
+          <View className="flex-1 bg-surface rounded-2xl p-4 border border-border items-center">
+            <Text className="text-3xl font-bold" style={{ color: colors.primary }}>
+              {report.totalWords}
+            </Text>
+            <Text className="text-sm text-muted mt-1">总字数</Text>
+          </View>
+          <View className="flex-1 bg-surface rounded-2xl p-4 border border-border items-center">
+            <Text className="text-3xl font-bold" style={{ color: getSentimentColor(report.sentiment) }}>
+              {report.sentiment}
+            </Text>
+            <Text className="text-sm text-muted mt-1">积极度</Text>
+          </View>
+          <View className="flex-1 bg-surface rounded-2xl p-4 border border-border items-center">
+            <Text className="text-3xl font-bold" style={{ color: colors.primary }}>
+              {todayEntries.length}
+            </Text>
+            <Text className="text-sm text-muted mt-1">篇数</Text>
+          </View>
+        </View>
+
+        {/* Summary */}
+        <View className="mb-6 bg-surface rounded-2xl p-5 border border-border">
+          <View className="flex-row items-center gap-2 mb-3">
+            <IconSymbol name="sparkles" size={20} color={colors.primary} />
+            <Text className="text-lg font-semibold text-foreground">今日总结</Text>
+          </View>
+          <Text className="text-base text-foreground leading-relaxed">
+            {report.summary}
+          </Text>
+        </View>
+
+        {/* Encouragement */}
+        <View className="mb-6 p-5 rounded-2xl" style={{ backgroundColor: colors.primary + '10' }}>
+          <Text className="text-base text-foreground text-center leading-relaxed">
+            💝 {report.encouragement}
+          </Text>
+        </View>
+
+        {/* Streak Info */}
+        {stats && stats.currentStreak > 0 && (
+          <View className="mb-6 bg-surface rounded-2xl p-5 border border-border">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <Text className="text-2xl">{streakInfo?.emoji}</Text>
+                  <Text className="text-xl font-bold text-foreground">
+                    连续打卡 {stats.currentStreak} 天
+                  </Text>
+                </View>
+                <Text className="text-sm text-muted">{streakInfo?.level}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Today's Entries List */}
+        <View className="mb-6">
+          <Text className="text-lg font-semibold text-foreground mb-3">今日日记</Text>
+          <View className="gap-3">
+            {todayEntries.map((entry, index) => (
+              <View
+                key={entry.id}
+                className="bg-surface rounded-xl p-4 border border-border"
+              >
+                <View className="flex-row items-center gap-2 mb-2">
+                  <View
+                    className="w-6 h-6 rounded-full items-center justify-center"
+                    style={{ backgroundColor: colors.primary }}
+                  >
+                    <Text className="text-xs font-bold" style={{ color: '#FFFFFF' }}>
+                      {index + 1}
+                    </Text>
+                  </View>
+                  <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
+                    {entry.topic}
+                  </Text>
+                </View>
+                <Text className="text-xs text-muted">
+                  {entry.wordCount} 字 · {new Date(entry.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Back Button */}
+        <TouchableOpacity
+          onPress={handleBackHome}
+          className="rounded-full py-4 mb-6"
+          style={{ backgroundColor: colors.primary }}
+        >
+          <Text className="text-base font-semibold text-center" style={{ color: '#FFFFFF' }}>
+            返回首页
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Celebration Modal */}
+      {showCelebration && completedToday && stats && (
+        <CelebrationModal
+          visible={showCelebration}
+          onClose={() => setShowCelebration(false)}
+          streak={stats.currentStreak}
+          newAchievements={[]}
+        />
+      )}
+    </ScreenContainer>
+  );
+}

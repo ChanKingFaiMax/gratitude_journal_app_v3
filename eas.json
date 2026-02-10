@@ -1,0 +1,38 @@
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "buildType": "simulator"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "buildType": "release"
+      }
+    },
+    "production": {
+      "ios": {
+        "buildType": "release",
+        "distribution": "store"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "your-apple-id@example.com",
+        "ascAppId": "your-app-store-connect-id",
+        "appleTeamId": "your-team-id"
+      }
+    }
+  }
+}
